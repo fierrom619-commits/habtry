@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Habit Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { font-size: 28px; font-weight: 700; margin-bottom: 5px; }
+        .info { color: #808080; font-size: 14px; margin-bottom: 20px; }
+        .tabs { display: flex; gap: 10px; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 20px; }
+        .tab-btn { background: none; border: none; color: #808080; cursor: pointer; padding: 8px 16px; font-weight: 500; }
+        .tab-btn.active { color: #fff; border-bottom: 2px solid #fff; margin-bottom: -11px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        table { width: 100%; border-collapse: collapse; background: #1a1a1a; border-radius: 8px; overflow: hidden; }
+        thead { background: #333; }
+        th { padding: 12px; text-align: left; font-weight: 700; font-size: 12px; text-transform: uppercase; border-right: 1px solid #444; }
+        th:last-child { border-right: none; }
+        td { padding: 12px; border-bottom: 1px solid #444; border-right: 1px solid #444; }
+        td:last-child { border-right: none; }
+        tbody tr { background: #2a2a2a; }
+        tbody tr:hover { background: #333; }
+        
+        .habit-row { display: flex; align-items: center; gap: 8px; }
+        .habit-name { font-weight: 700; flex: 1; }
+        .btn-delete { background: none; border: none; color: #ccc; cursor: pointer; font-size: 16px; padding: 4px 8px; opacity: 0.7; }
+        .btn-delete:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+        
+        .checkbox-cell { text-align: center; }
+        input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #fff; appearance: none; background: #1a1a1a; border: 2px solid #808080; border-radius: 4px; }
+        input[type="checkbox"]:checked { background: rgba(255,255,255,0.15); border-color: #fff; }
+        input[type="checkbox"]:checked::after { content: "✓"; position: absolute; color: #fff; }
+        
+        .input-section { margin-top: 20px; display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 10px 12px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; }
+        input[type="text"]::placeholder { color: #808080; }
+        .btn-add { padding: 10px 16px; background: #fff; color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; }
+        .btn-add:hover { opacity: 0.85; }
+        
+        .empty { text-align: center; padding: 40px 20px; color: #808080; }
+        .archive-item { background: #1a1a1a; padding: 15px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #444; }
+        .archive-date { font-weight: 700; color: #fff; margin-bottom: 8px; font-size: 13px; }
+        .archive-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+        .archive-habit { padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 12px; }
+        .archive-habit.complete { color: #fff; }
+        .archive-habit.incomplete { color: #808080; opacity: 0.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 HABITS</h1>
+        <div class="info" id="info"></div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="tab('week')">This Week</button>
+            <button class="tab-btn" onclick="tab('archive')">Archive</button>
+        </div>
+        
+        <div id="week" class="tab-content active">
+            <table id="table">
+                <thead>
+                    <tr>
+                        <th>HABITS</th>
+                        <th>MON</th>
+                        <th>TUE</th>
+                        <th>WED</th>
+                        <th>THU</th>
+                        <th>FRI</th>
+                        <th>SAT</th>
+                        <th>SUN</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+            </table>
+            <div class="input-section">
+                <input type="text" id="input" placeholder="Add new habit..." onkeypress="if(event.key==='Enter')add()">
+                <button class="btn-add" onclick="add()">Add</button>
+            </div>
+        </div>
+        
+        <div id="archive" class="tab-content">
+            <div id="archive-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        let state = { habits: [], week: {}, archive: [] };
+        
+        function getWeekKey() {
+            const d = new Date();
+            const dow = d.getDay();
+            const diff = d.getDate() - dow + (dow === 0 ? -6 : 1);
+            const start = new Date(d.setDate(diff));
+            return start.toISOString().split('T')[0];
+        }
+        
+        function key(id, day) {
+            return `${getWeekKey()}_${id}_${day}`;
+        }
+        
+        function updateInfo() {
+            const d = new Date();
+            const dow = d.getDay();
+            const diff = d.getDate() - dow + (dow === 0 ? -6 : 1);
+            const start = new Date(d.setDate(diff));
+            const end = new Date(start);
+            end.setDate(end.getDate() + 6);
+            const fmt = (date) => date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            document.getElementById('info').textContent = `${fmt(start)} - ${fmt(end)}`;
+        }
+        
+        function render() {
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = '';
+            
+            if (state.habits.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px 20px;color:#808080">Add your first habit</td></tr>';
+                return;
+            }
+            
+            state.habits.forEach(h => {
+                const tr = document.createElement('tr');
+                let html = `<td><div class="habit-row"><span class="habit-name">${h.name}</span><button class="btn-delete" onclick="del(${h.id})">✕</button></div></td>`;
+                for (let i = 0; i < 7; i++) {
+                    const k = key(h.id, i);
+                    const checked = state.week[k] ? 'checked' : '';
+                    html += `<td class="checkbox-cell"><input type="checkbox" ${checked} onchange="toggle(${h.id}, ${i})"></td>`;
+                }
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        function add() {
+            const inp = document.getElementById('input');
+            const name = inp.value.trim();
+            if (!name) return;
+            state.habits.push({ id: Date.now(), name });
+            inp.value = '';
+            render();
+        }
+        
+        function del(id) {
+            state.habits = state.habits.filter(h => h.id !== id);
+            Object.keys(state.week).forEach(k => {
+                if (k.includes(`_${id}_`)) delete state.week[k];
+            });
+            render();
+        }
+        
+        function toggle(id, day) {
+            const k = key(id, day);
+            state.week[k] = !state.week[k];
+        }
+        
+        function renderArchive() {
+            const el = document.getElementById('archive-list');
+            if (state.archive.length === 0) {
+                el.innerHTML = '<div class="empty"><div style="font-size:40px;margin-bottom:10px">📚</div><p>No weeks archived</p></div>';
+                return;
+            }
+            el.innerHTML = state.archive.map(w => `
+                <div class="archive-item">
+                    <div class="archive-date">Week: ${w.date}</div>
+                    <div class="archive-list">
+                        ${w.habits.map(h => `
+                            <div class="archive-habit ${h.complete ? 'complete' : 'incomplete'}">
+                                ${h.name} (${h.complete}/7)
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function tab(name) {
+            document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('active'));
+            document.getElementById(name).classList.add('active');
+            event.target.classList.add('active');
+            if (name === 'archive') renderArchive();
+        }
+        
+        updateInfo();
+        render();
+    </script>
+</body>
+</html>
